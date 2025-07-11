@@ -1,70 +1,57 @@
-const { type, name } = $arguments
-const compatible_outbound = {
-  tag: 'COMPATIBLE',
-  type: 'direct',
-}
+const { name, type } = $arguments;
 
-let compatible
-let config = JSON.parse($files[0])
+// 1. 加载优化后的模板
+let config = JSON.parse($files[0]);
 
-// 1. 获取所有代理节点
+// 2. 拉取订阅或合集节点
 let proxies = await produceArtifact({
   name,
-  type: /^1$|col/i.test(type) ? 'collection' : 'subscription',
-  platform: 'sing-box',
-  produceType: 'internal',
-})
-
-// 2. [已优化] 过滤掉信息节点和无效节点
-const infoKeywords = /流量|剩余|到期|时间|重置|官网|群组/i;
-let validProxies = proxies.filter(p => p.tag && !infoKeywords.test(p.tag));
-
-// 3. 将过滤后的有效代理节点添加到配置中
-config.outbounds.push(...validProxies)
-
-// 4. 遍历策略组，并使用过滤后的有效代理节点进行填充
-config.outbounds.map(i => {
-  if (['all', 'all-auto'].includes(i.tag)) {
-    i.outbounds.push(...getTags(validProxies))
-  }
-  if (['hk', 'hk-auto'].includes(i.tag)) {
-    i.outbounds.push(...getTags(validProxies, /港|hk|hongkong|kong kong|🇭🇰/i))
-  }
-  if (['tw', 'tw-auto'].includes(i.tag)) {
-    i.outbounds.push(...getTags(validProxies, /台|tw|taiwan|🇹🇼/i))
-  }
-  if (['jp', 'jp-auto'].includes(i.tag)) {
-    i.outbounds.push(...getTags(validProxies, /日本|jp|japan|🇯🇵/i))
-  }
-  if (['sg', 'sg-auto'].includes(i.tag)) {
-    i.outbounds.push(...getTags(validProxies, /^(?!.*(?:us)).*(新|sg|singapore|🇸🇬)/i))
-  }
-  if (['us', 'us-auto'].includes(i.tag)) {
-    i.outbounds.push(...getTags(validProxies, /美|us|unitedstates|united states|🇺🇸/i))
-  }
-})
-
-// 5. 为空的策略组添加兼容性 fallback 节点
-config.outbounds.forEach(outbound => {
-  if (Array.isArray(outbound.outbounds) && outbound.outbounds.length === 0) {
-    if (!compatible) {
-      config.outbounds.push(compatible_outbound)
-      compatible = true
-    }
-    outbound.outbounds.push(compatible_outbound.tag);
-  }
+  type: /^1$|col/i.test(type) ? "collection" : "subscription",
+  platform: "sing-box",
+  produceType: "internal",
 });
 
-// 6. 转换为字符串并进行 URL 替换
-let contentString = JSON.stringify(config, null, 2)
-const github_proxy = 'https://ghfast.top/' // <--- 您可以修改为您偏好的加速服务地址
-// [已修正] 使用正确的替换逻辑
-contentString = contentString.replace(/(https?:\/\/(?:raw\.githubusercontent\.com|github\.com)\/)/g, `${github_proxy}$1`)
-contentString = contentString.replace(/"download_detour":\s*".*?"/g, '"download_detour": "direct"')
+// 3. 去重：过滤掉 tag 冲突的节点
+const existingTags = config.outbounds.map((o) => o.tag);
+proxies = proxies.filter((p) => !existingTags.includes(p.tag));
 
-// 7. 输出最终内容
-$content = contentString
+// 4. 添加节点到 outbounds
+config.outbounds.push(...proxies);
 
-function getTags(proxies, regex) {
-  return (regex ? proxies.filter(p => regex.test(p.tag)) : proxies).map(p => p.tag)
-}
+// 5. 获取所有新节点的 tag 列表
+const allProxyTags = proxies.map((p) => p.tag);
+
+// 6. 定义区域匹配规则
+const regions = {
+  "🇭🇰 香港节点": /香港|HK|Hong\s?Kong/i,
+  "🇹🇼 台湾节点": /台湾|台|Tai\s?Wan|TW|TWN/i,
+  "🇯🇵 日本节点": /日本|JP|JPN|Japan|Tokyo/i,
+  "🇺🇸 美国节点": /美国|US|USA|United\s?States|America/i,
+  "🇸🇬 新加坡节点": /新加坡|SG|SIN|Singapore/i,
+};
+
+// 7. 定义需要填充节点的代理组
+const manualSwitchGroup = config.outbounds.find(o => o.tag === "⚙️ 手动切换");
+const autoSelectGroup = config.outbounds.find(o => o.tag === "🎚️ 自动选择");
+const globalProxyGroup = config.outbounds.find(o => o.tag === "🌍 全球代理");
+
+// 8. 填充核心代理组
+if (manualSwitchGroup) manualSwitchGroup.outbounds.push(...allProxyTags);
+if (autoSelectGroup) autoSelectGroup.outbounds.push(...allProxyTags);
+// 全球代理组默认已包含自动和手动，无需再次填充
+
+// 9. 填充区域分组，并设置安全回退
+Object.keys(regions).forEach((groupTag) => {
+  const group = config.outbounds.find((o) => o.tag === groupTag);
+  if (!group) return;
+
+  const matched = allProxyTags.filter((tag) => regions[groupTag].test(tag));
+
+  // --- 安全性修复 ---
+  // 如果区域内有节点，则使用匹配到的节点
+  // 如果没有匹配到任何节点，则回退到'全球代理'，而不是'直连'，防止流量泄露
+  group.outbounds = matched.length > 0 ? matched : ["🌍 全球代理"];
+});
+
+// 10. 输出最终配置
+$content = JSON.stringify(config, null, 2);
