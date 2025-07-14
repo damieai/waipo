@@ -145,19 +145,14 @@
       "default": "direct",
       "interrupt_exist_connections": true
     },
-    
-    // ########## 以下是为 AI 分流新增的策略组 ##########
     {
       "tag": "AI",
       "type": "selector",
       "outbounds": [
-        "Proxy",
         "direct"
       ],
-      "default": "Proxy" 
+      "default": "direct"
     }
-    // ################### 新增结束 ###################
-    
   ],
   "route": {
     "rule_set": [
@@ -217,8 +212,6 @@
         "download_detour": "Proxy",
         "update_interval": "10d"
       },
-      
-      // ########## 以下是为 AI 分流新增的规则集 ##########
       {
         "tag": "ai-domain",
         "type": "remote",
@@ -227,8 +220,6 @@
         "download_detour": "Proxy",
         "update_interval": "24h"
       }
-      // ################### 新增结束 ###################
-      
     ],
     "rules": [
       {
@@ -247,16 +238,12 @@
         ],
         "action": "hijack-dns"
       },
-
-      // ########## 以下是为 AI 分流新增的路由规则 ##########
       {
         "rule_set": [
           "ai-domain"
         ],
         "outbound": "AI"
       },
-      // ################### 新增结束 ###################
-      
       {
         "clash_mode": "Direct",
         "action": "route",
