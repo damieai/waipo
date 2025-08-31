@@ -1,0 +1,19 @@
+{
+  id: 'com.zhiliaoapp.musically',
+  name: 'TikTok',
+  groups: [
+    {
+      key: 1,
+      name: '功能类-关闭登录页面',
+      rules: [
+        {
+          fastQuery: true,
+          activityIds: 'com.ss.android.ugc.aweme.account.login.auth.I18nSignUpActivity',
+          matches: '@ImageView[desc="关闭"][clickable=true] +2 LinearLayout >3 [text="已有账号？登录"][visibleToUser=true]',
+          exampleUrls: 'https://e.gkd.li/099ae9d3-4ad1-4942-818e-7eed9bdb978b',
+          snapshotUrls: 'https://i.gkd.li/i/22063446',
+        },
+      ],
+    },
+  ],
+}
